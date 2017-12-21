@@ -12,7 +12,7 @@ package com.wmc.akka.mydb;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.wmc.akka.mydb.messages.SetRequest;
+import com.wmc.akka.mydb.event.SetRequest;
 
 import akka.actor.AbstractActor;
 import akka.event.Logging;

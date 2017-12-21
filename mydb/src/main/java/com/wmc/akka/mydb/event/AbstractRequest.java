@@ -7,7 +7,7 @@
  * 修改历史：
  * 2017年12月20日 - Administrator - 创建。
  */
-package com.wmc.akka.mydb.messages;
+package com.wmc.akka.mydb.event;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;

@@ -13,7 +13,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.wmc.akka.mydb.AkkaDB;
-import com.wmc.akka.mydb.messages.SetRequest;
+import com.wmc.akka.mydb.event.SetRequest;
 
 import akka.actor.ActorSystem;
 import akka.actor.Props;
