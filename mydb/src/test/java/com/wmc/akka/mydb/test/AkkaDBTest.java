@@ -9,15 +9,29 @@
  */
 package com.wmc.akka.mydb.test;
 
-import org.junit.Assert;
+import static akka.actor.ActorRef.noSender;
+import static org.junit.Assert.assertEquals;
+
+import java.text.MessageFormat;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.Test;
 
-import com.wmc.akka.mydb.AkkaDB;
-import com.wmc.akka.mydb.event.SetRequest;
+import com.wmc.akkadb.server.AkkaDB;
+import com.wmc.akkadb.server.event.GetRequest;
+import com.wmc.akkadb.server.event.SetRequest;
 
 import akka.actor.ActorSystem;
 import akka.actor.Props;
+import akka.pattern.Patterns;
 import akka.testkit.TestActorRef;
+import scala.compat.java8.FutureConverters;
+import scala.concurrent.Await;
+import scala.concurrent.Future;
+import scala.concurrent.duration.Duration;
 
 /**
  * @author Administrator
@@ -25,12 +39,67 @@ import akka.testkit.TestActorRef;
  */
 public class AkkaDBTest {
   ActorSystem system = ActorSystem.create();
-  
+  TestActorRef<AkkaDB> actorRef = TestActorRef.create(system, Props.create(AkkaDB.class));
+
   @Test
   public void setTest() {
     String key = "akaly", val = "33-26-34";
-    TestActorRef<AkkaDB> actorRef = TestActorRef.create(system, Props.create(AkkaDB.class));
-    actorRef.tell(new SetRequest(key, val), TestActorRef.noSender());
-    Assert.assertEquals(actorRef.underlyingActor().map.get(key), val);
+    actorRef.tell(new SetRequest(key, val), noSender());
+    assertEquals(actorRef.underlyingActor().map.get(key), val);
+  }
+
+  @Test
+  public void getTest() throws Exception {
+    String key = "Ping", expect = "Pong";
+    actorRef.tell(new SetRequest(key, expect), noSender());
+    Future future = Patterns.ask(actorRef, new GetRequest(key), 1000);
+    assertEquals(expect, Await.result(future, Duration.create(1, TimeUnit.SECONDS)));
+  }
+
+  @Test
+  public void getStringTest() throws Exception {
+    String key = "Ping", expect = "Pong";
+    actorRef.tell(new SetRequest(key, expect), noSender());
+    Future future = Patterns.ask(actorRef, "Ping", 1000);
+    assertEquals(expect, Await.result(future, Duration.create(1, TimeUnit.SECONDS)));
+  }
+
+  @Test(expected = ExecutionException.class)
+  public void failureTest() throws Exception {
+    Future sFuture = Patterns.ask(actorRef, 88, 1000);
+    CompletableFuture jFuture = (CompletableFuture) FutureConverters.toJava(sFuture);
+    jFuture.get(1, TimeUnit.SECONDS);
+  }
+
+  @Test
+  public void callbackTest() {
+    get("key").thenAccept(System.out::println);
+  }
+
+  @Test
+  public void handleTest() {
+    get(true).handle((r, t) -> {
+      if (t != null)
+        System.out.println(t);
+      else
+        System.out.println("查询结果：" + r);
+      return r;
+    });
+  }
+
+  @Test
+  public void 组合多次查询() {
+    String key1 = "name", key2 = "mobile";
+    actorRef.tell(new SetRequest(key1, "万明丞"), noSender());
+    actorRef.tell(new SetRequest(key2, "18221201154"), noSender());
+    get("name").thenCombine(get("mobile"), (r1, r2) -> {
+      System.out.println(MessageFormat.format("{0}:{1}, {2}:{3}", key1, r1, key2, r2));
+      return r1.toString() + r2;
+    });
+  }
+
+  public CompletionStage get(Object key) {
+    final CompletionStage cs = FutureConverters.toJava(Patterns.ask(actorRef, key, 1000));
+    return cs;
   }
 }

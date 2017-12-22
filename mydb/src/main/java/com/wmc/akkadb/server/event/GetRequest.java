@@ -7,26 +7,22 @@
  * 修改历史：
  * 2017年12月20日 - Administrator - 创建。
  */
-package com.wmc.akka.mydb.event;
+package com.wmc.akkadb.server.event;
 
 /**
  * @author Administrator
  *
  */
-public final class SetRequest extends AbstractRequest {
-  private final String key;
-  private final Object val;
+public final class GetRequest extends AbstractRequest {
+  private static final long serialVersionUID = -944428817395482358L;
 
-  public SetRequest(String key, Object val) {
+  private final String key;
+
+  public GetRequest(String key) {
     this.key = key;
-    this.val = val;
   }
 
   public String getKey() {
     return key;
-  }
-
-  public Object getVal() {
-    return val;
   }
 }

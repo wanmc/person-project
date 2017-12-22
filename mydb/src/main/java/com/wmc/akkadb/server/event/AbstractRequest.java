@@ -7,7 +7,9 @@
  * 修改历史：
  * 2017年12月20日 - Administrator - 创建。
  */
-package com.wmc.akka.mydb.event;
+package com.wmc.akkadb.server.event;
+
+import java.io.Serializable;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -16,7 +18,8 @@ import org.apache.commons.lang3.builder.ToStringStyle;
  * @author Administrator
  *
  */
-public abstract class AbstractRequest {
+public abstract class AbstractRequest implements Serializable {
+  private static final long serialVersionUID = 7332355451062255588L;
 
   @Override
   public String toString() {
