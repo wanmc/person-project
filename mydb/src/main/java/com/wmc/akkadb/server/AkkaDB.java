@@ -14,6 +14,7 @@ import java.util.Map;
 
 import com.wmc.akkadb.commons.IllegalRequestException;
 import com.wmc.akkadb.commons.KeyNotFoundException;
+import com.wmc.akkadb.event.DeleteRequest;
 import com.wmc.akkadb.event.GetRequest;
 import com.wmc.akkadb.event.SetNXRequest;
 import com.wmc.akkadb.event.SetRequest;
@@ -47,6 +48,10 @@ public class AkkaDB extends AbstractActor {
       } else {
         sender().tell(false, self());
       }
+    }).match(DeleteRequest.class, e -> {
+      log.debug("receive delete request: {}", e);
+      map.remove(e.getKey());
+      sender().tell(true, self());
     }).match(GetRequest.class, e -> {
       sender().tell(get(e.getKey()), self());
     }).match(String.class, key -> {

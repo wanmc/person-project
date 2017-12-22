@@ -7,7 +7,7 @@
  * 修改历史：
  * 2017年12月20日 - Administrator - 创建。
  */
-package com.wmc.akka.mydb.test;
+package com.wmc.akkadb.test;
 
 import static akka.actor.ActorRef.noSender;
 import static org.junit.Assert.assertEquals;
