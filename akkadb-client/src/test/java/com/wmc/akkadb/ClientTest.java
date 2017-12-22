@@ -10,8 +10,9 @@
 package com.wmc.akkadb;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import org.junit.Test;
 
 import com.typesafe.config.ConfigFactory;
@@ -57,5 +58,13 @@ public class ClientTest {
     client.delete(key);
     actual = client.get(key, String.class);
     assertNull(actual);
+  }
+
+  @Test
+  public void asyncGet() throws Exception {
+    String key = "akaly", val = "33-26-34";
+    client.asyncSet(key, val);
+    String actual = client.asyncGet(key, String.class).get();
+    assertEquals(val, actual);
   }
 }
