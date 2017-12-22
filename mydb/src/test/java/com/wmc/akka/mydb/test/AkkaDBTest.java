@@ -20,9 +20,9 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import com.wmc.akkadb.event.GetRequest;
+import com.wmc.akkadb.event.SetRequest;
 import com.wmc.akkadb.server.AkkaDB;
-import com.wmc.akkadb.server.event.GetRequest;
-import com.wmc.akkadb.server.event.SetRequest;
 
 import akka.actor.ActorSystem;
 import akka.actor.Props;

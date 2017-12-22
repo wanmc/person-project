@@ -12,10 +12,11 @@ package com.wmc.akkadb.server;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.wmc.akkadb.server.commons.IllegalRequestException;
-import com.wmc.akkadb.server.commons.KeyNotFoundException;
-import com.wmc.akkadb.server.event.GetRequest;
-import com.wmc.akkadb.server.event.SetRequest;
+import com.wmc.akkadb.commons.IllegalRequestException;
+import com.wmc.akkadb.commons.KeyNotFoundException;
+import com.wmc.akkadb.event.GetRequest;
+import com.wmc.akkadb.event.SetNXRequest;
+import com.wmc.akkadb.event.SetRequest;
 
 import akka.actor.AbstractActor;
 import akka.actor.Status;
@@ -37,6 +38,15 @@ public class AkkaDB extends AbstractActor {
       log.debug("receive set request: {}", e);
       map.put(e.getKey(), e.getVal());
       sender().tell(true, self());
+    }).match(SetNXRequest.class, e -> {
+      log.debug("receive set request: {}", e);
+      String key = e.getKey();
+      if (map.get(key) == null) {
+        map.put(e.getKey(), e.getVal());
+        sender().tell(true, self());
+      } else {
+        sender().tell(false, self());
+      }
     }).match(GetRequest.class, e -> {
       sender().tell(get(e.getKey()), self());
     }).match(String.class, key -> {
