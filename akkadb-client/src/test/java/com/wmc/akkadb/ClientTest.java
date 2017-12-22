@@ -24,7 +24,7 @@ import com.wmc.akkadb.client.AkkaDBClient;
  */
 public class ClientTest {
   AkkaDBClient client = new AkkaDBClient(
-      ConfigFactory.defaultApplication().getString("akka_db.remote_url"));
+      ConfigFactory.defaultApplication().getString("akka.remote_url"));
 
   @Test
   public void set() {
