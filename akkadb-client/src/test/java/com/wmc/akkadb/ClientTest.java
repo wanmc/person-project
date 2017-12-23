@@ -13,26 +13,30 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.net.URL;
+
 import org.junit.Test;
 
 import com.typesafe.config.ConfigFactory;
 import com.wmc.akkadb.client.AkkaDBClient;
+
+import akka.actor.ActorSystem;
 
 /**
  * @author Administrator
  *
  */
 public class ClientTest {
-  AkkaDBClient client = new AkkaDBClient(
+  private static final ActorSystem system = ActorSystem.create("Akka-db-system-client");
+  AkkaDBClient client = new AkkaDBClient(system,
       ConfigFactory.defaultApplication().getString("akka.remote_url"));
 
   @Test
-  public void set() {
-    String key = "akaly", val = "33-26-34";
+  public void set() throws Exception {
+    String key = "akaly"; URL val = new URL("http://www.baidu.com");
     boolean set = client.set(key, val);
     assertTrue(set);
-    String actual = client.get(key, String.class);
-    assertEquals(val, actual);
+    assertEquals(val, client.get(key, val.getClass()));
   }
 
   @Test

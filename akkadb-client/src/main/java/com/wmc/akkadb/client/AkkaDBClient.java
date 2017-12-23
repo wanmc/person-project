@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 
+import com.alibaba.fastjson.JSON;
 import com.wmc.akkadb.commons.KeyNotFoundException;
 import com.wmc.akkadb.event.DeleteRequest;
 import com.wmc.akkadb.event.GetRequest;
@@ -33,12 +34,15 @@ import scala.concurrent.duration.Duration;
  *
  */
 public class AkkaDBClient {
-  private static final ActorSystem system = ActorSystem.create("Akka-db-system-client");
-
   private final ActorSelection selection;
-  private long timeoutInMills = 500;
+  private long timeoutInMills;
 
-  public AkkaDBClient(String remoteUrl) {
+  public AkkaDBClient(ActorSystem system, String remoteUrl) {
+    this(system, remoteUrl, 500L);
+  }
+
+  public AkkaDBClient(ActorSystem system, String remoteUrl, long timeoutInMills) {
+    this.timeoutInMills = timeoutInMills;
     selection = system
         .actorSelection("akka.tcp://Akka-db-system-server@" + remoteUrl + "/user/db-actor");
   }
@@ -52,6 +56,9 @@ public class AkkaDBClient {
   }
 
   public boolean set(String key, Object val) {
+    if (val.getClass().getClassLoader() != null) {
+      val = JSON.toJSONString(val);
+    }
     SetRequest request = new SetRequest(key, val);
     Future future = ask(selection, request, timeoutInMills);
     boolean success = false;
@@ -65,11 +72,17 @@ public class AkkaDBClient {
   }
 
   public CompletionStage asyncSet(String key, Object val) {
+    if (val.getClass().getClassLoader() != null) {
+      val = JSON.toJSONString(val);
+    }
     SetRequest request = new SetRequest(key, val);
     return toJava(ask(selection, request, timeoutInMills));
   }
 
   public boolean setNX(String key, Object val) {
+    if (val.getClass().getClassLoader() != null) {
+      val = JSON.toJSONString(val);
+    }
     SetNXRequest request = new SetNXRequest(key, val);
     Future future = ask(selection, request, timeoutInMills);
     boolean success = false;
@@ -82,6 +95,9 @@ public class AkkaDBClient {
   }
 
   public CompletionStage asyncSetNX(String key, Object val) {
+    if (val.getClass().getClassLoader() != null) {
+      val = JSON.toJSONString(val);
+    }
     SetNXRequest request = new SetNXRequest(key, val);
     return toJava(ask(selection, request, timeoutInMills));
   }
@@ -108,7 +124,11 @@ public class AkkaDBClient {
     Future future = ask(selection, request, timeoutInMills);
     T result = null;
     try {
-      result = (T) Await.result(future, Duration.create(timeoutInMills, TimeUnit.SECONDS));
+      Object obj = Await.result(future, Duration.create(timeoutInMills, TimeUnit.SECONDS));
+      if (cls.getClassLoader() == null)
+        result = (T) obj;
+      else
+        result = JSON.parseObject(obj.toString(), cls);
     } catch (KeyNotFoundException e) {
       request = null;
     } catch (Exception e) {
@@ -119,7 +139,13 @@ public class AkkaDBClient {
 
   public <T> CompletableFuture<T> asyncGet(String key, Class<T> cls) {
     GetRequest request = new GetRequest(key);
-    Future<T> future = (Future<T>) ask(selection, request, timeoutInMills);
-    return (CompletableFuture<T>)toJava(future);
+    Future future = ask(selection, request, timeoutInMills);
+    CompletionStage result = toJava(future).thenApply(x -> {
+      if (x != null && x instanceof String && cls.getClassLoader() != null) {
+        return JSON.parseObject(x.toString(), cls);
+      }
+      return new String();
+    });
+    return (CompletableFuture<T>) result;
   }
 }
