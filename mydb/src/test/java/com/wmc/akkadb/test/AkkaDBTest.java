@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 import com.wmc.akkadb.event.GetRequest;
+import com.wmc.akkadb.event.RequestQueue;
 import com.wmc.akkadb.event.SetRequest;
 import com.wmc.akkadb.server.AkkaDB;
 
@@ -56,14 +57,6 @@ public class AkkaDBTest {
     assertEquals(expect, Await.result(future, Duration.create(1, TimeUnit.SECONDS)));
   }
 
-  @Test
-  public void getStringTest() throws Exception {
-    String key = "Ping", expect = "Pong";
-    actorRef.tell(new SetRequest(key, expect), noSender());
-    Future future = Patterns.ask(actorRef, "Ping", 1000);
-    assertEquals(expect, Await.result(future, Duration.create(1, TimeUnit.SECONDS)));
-  }
-
   @Test(expected = ExecutionException.class)
   public void failureTest() throws Exception {
     Future sFuture = Patterns.ask(actorRef, 88, 1000);
@@ -96,6 +89,18 @@ public class AkkaDBTest {
       System.out.println(MessageFormat.format("{0}:{1}, {2}:{3}", key1, r1, key2, r2));
       return r1.toString() + r2;
     });
+  }
+
+  @Test
+  public void 批量操作() {
+    String key1 = "name", key2 = "mobile";
+    String val1 = "万明丞", val2 = "18221201154";
+    RequestQueue queue = new RequestQueue();
+    queue.add(new SetRequest(key1, val1));
+    queue.add(new SetRequest(key2, val2));
+    actorRef.tell(queue, noSender());
+    assertEquals(actorRef.underlyingActor().map.get(key1), val1);
+    assertEquals(actorRef.underlyingActor().map.get(key2), val2);
   }
 
   public CompletionStage get(Object key) {

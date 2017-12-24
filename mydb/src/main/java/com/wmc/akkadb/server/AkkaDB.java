@@ -16,6 +16,7 @@ import com.wmc.akkadb.commons.IllegalRequestException;
 import com.wmc.akkadb.commons.KeyNotFoundException;
 import com.wmc.akkadb.event.DeleteRequest;
 import com.wmc.akkadb.event.GetRequest;
+import com.wmc.akkadb.event.RequestQueue;
 import com.wmc.akkadb.event.SetNXRequest;
 import com.wmc.akkadb.event.SetRequest;
 
@@ -36,33 +37,81 @@ public class AkkaDB extends AbstractActor {
 
   @Override
   public Receive createReceive() {
-    return receiveBuilder().match(SetNXRequest.class, e -> {
-      log.debug("receive set request: {}", e);
-      String key = e.getKey();
-      if (map.get(key) == null) {
-        map.put(e.getKey(), e.getVal());
-        sender().tell(true, self());
-      } else {
-        sender().tell(false, self());
-      }
-    }).match(GetRequest.class, e -> {
-      log.debug("receive set request: {}", e);
-      sender().tell(get(e.getKey()), self());
-    }).match(SetRequest.class, e -> {
-      log.debug("receive set request: {}", e);
+    return receiveBuilder()//
+        .match(GetRequest.class, e -> get(e, true))//
+        .match(SetRequest.class, e -> set(e, true))//
+        .match(SetNXRequest.class, e -> setNX(e, true))//
+        .match(DeleteRequest.class, e -> delete(e, true))//
+        .match(RequestQueue.class, queue -> {
+          queue.forEach(e -> {
+            if (e instanceof GetRequest) {
+              get((GetRequest) e);
+            } else if (e instanceof SetRequest) {
+              set((SetRequest) e);
+            } else if (e instanceof SetNXRequest) {
+              setNX((SetNXRequest) e);
+            } else if (e instanceof DeleteRequest) {
+              delete((DeleteRequest) e);
+            }
+            answer(true, true);
+          });
+        }).match(String.class, x -> x.equals("connect"), x -> {
+          ActorRef sender = sender();
+          log.info("客户端[{}]连接成功！", sender.path());
+          sender.tell("connected", self());
+        }).matchAny(e -> {
+          sender().tell(new Status.Failure(new IllegalRequestException("未知的事件：{0}", e)), self());
+        }).build();
+  }
+
+  private void get(GetRequest e) {
+    get(e, false);
+  }
+
+  private void set(SetRequest e) {
+    set(e, false);
+  }
+
+  private void setNX(SetNXRequest e) {
+    setNX(e, false);
+  }
+
+  private void delete(DeleteRequest e) {
+    delete(e, false);
+  }
+
+  private void get(GetRequest e, boolean answer) {
+    log.debug("receive set request: {}", e);
+    answer(get(e.getKey()), answer);
+  }
+
+  private void set(SetRequest e, boolean answer) {
+    log.debug("receive set request: {}", e);
+    map.put(e.getKey(), e.getVal());
+    answer(true, answer);
+  }
+
+  private void setNX(SetNXRequest e, boolean answer) {
+    log.debug("receive set request: {}", e);
+    String key = e.getKey();
+    if (map.get(key) == null) {
       map.put(e.getKey(), e.getVal());
-      sender().tell(true, self());
-    }).match(DeleteRequest.class, e -> {
-      log.debug("receive delete request: {}", e);
-      map.remove(e.getKey());
-      sender().tell(true, self());
-    }).match(String.class, x -> x.equals("connect"), x -> {
-      ActorRef sender = sender();
-      log.info("客户端[{}]连接成功！", sender.path());
-      sender.tell("connected", self());
-    }).matchAny(e -> {
-      sender().tell(new Status.Failure(new IllegalRequestException("未知的事件：{0}", e)), self());
-    }).build();
+      answer(true, answer);
+    } else {
+      answer(false, answer);
+    }
+  }
+
+  private void delete(DeleteRequest e, boolean answer) {
+    log.debug("receive delete request: {}", e);
+    map.remove(e.getKey());
+    answer(true, answer);
+  }
+
+  private void answer(Object msg, boolean answer) {
+    if (answer) {
+      sender().tell(msg, self());
+    }
   }
 
   private Object get(String key) {
