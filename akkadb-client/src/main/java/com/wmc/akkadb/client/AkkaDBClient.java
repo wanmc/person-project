@@ -18,13 +18,15 @@ import java.util.concurrent.TimeUnit;
 
 import com.alibaba.fastjson.JSON;
 import com.wmc.akkadb.commons.KeyNotFoundException;
+import com.wmc.akkadb.event.AbstractRequest;
 import com.wmc.akkadb.event.DeleteRequest;
 import com.wmc.akkadb.event.GetRequest;
 import com.wmc.akkadb.event.SetNXRequest;
 import com.wmc.akkadb.event.SetRequest;
 
-import akka.actor.ActorSelection;
+import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+import akka.actor.Props;
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 import scala.concurrent.duration.Duration;
@@ -34,7 +36,7 @@ import scala.concurrent.duration.Duration;
  *
  */
 public class AkkaDBClient {
-  private final ActorSelection selection;
+  private final ActorRef actor;
   private long timeoutInMills;
 
   public AkkaDBClient(ActorSystem system, String remoteUrl) {
@@ -43,8 +45,7 @@ public class AkkaDBClient {
 
   public AkkaDBClient(ActorSystem system, String remoteUrl, long timeoutInMills) {
     this.timeoutInMills = timeoutInMills;
-    selection = system
-        .actorSelection("akka.tcp://Akka-db-system-server@" + remoteUrl + "/user/db-actor");
+    actor = system.actorOf(Props.create(DBClientActor.class, remoteUrl));
   }
 
   public long getTimeoutInMills() {
@@ -60,7 +61,7 @@ public class AkkaDBClient {
       val = JSON.toJSONString(val);
     }
     SetRequest request = new SetRequest(key, val);
-    Future future = ask(selection, request, timeoutInMills);
+    Future future = ask(actor, request, timeoutInMills);
     boolean success = false;
     try {
       success = (boolean) Await.result(future,
@@ -76,7 +77,7 @@ public class AkkaDBClient {
       val = JSON.toJSONString(val);
     }
     SetRequest request = new SetRequest(key, val);
-    return toJava(ask(selection, request, timeoutInMills));
+    return toJava(ask(actor, request, timeoutInMills));
   }
 
   public boolean setNX(String key, Object val) {
@@ -84,7 +85,7 @@ public class AkkaDBClient {
       val = JSON.toJSONString(val);
     }
     SetNXRequest request = new SetNXRequest(key, val);
-    Future future = ask(selection, request, timeoutInMills);
+    Future future = ask(actor, request, timeoutInMills);
     boolean success = false;
     try {
       success = (boolean) Await.result(future, Duration.create(timeoutInMills, TimeUnit.SECONDS));
@@ -99,12 +100,12 @@ public class AkkaDBClient {
       val = JSON.toJSONString(val);
     }
     SetNXRequest request = new SetNXRequest(key, val);
-    return toJava(ask(selection, request, timeoutInMills));
+    return toJava(ask(actor, request, timeoutInMills));
   }
 
   public boolean delete(String key) {
     DeleteRequest request = new DeleteRequest(key);
-    Future future = ask(selection, request, 500);
+    Future future = ask(actor, request, 500);
     boolean success = false;
     try {
       success = (boolean) Await.result(future, Duration.create(timeoutInMills, TimeUnit.SECONDS));
@@ -116,12 +117,12 @@ public class AkkaDBClient {
 
   public CompletionStage asyncDelete(String key) {
     DeleteRequest request = new DeleteRequest(key);
-    return toJava(ask(selection, request, timeoutInMills));
+    return toJava(ask(actor, request, timeoutInMills));
   }
 
   public <T> T get(String key, Class<T> cls) {
     GetRequest request = new GetRequest(key);
-    Future future = ask(selection, request, timeoutInMills);
+    Future future = ask(actor, request, timeoutInMills);
     T result = null;
     try {
       Object obj = Await.result(future, Duration.create(timeoutInMills, TimeUnit.SECONDS));
@@ -139,13 +140,17 @@ public class AkkaDBClient {
 
   public <T> CompletableFuture<T> asyncGet(String key, Class<T> cls) {
     GetRequest request = new GetRequest(key);
-    Future future = ask(selection, request, timeoutInMills);
+    Future future = ask(actor, request, timeoutInMills);
     CompletionStage result = toJava(future).thenApply(x -> {
       if (x != null && x instanceof String && cls.getClassLoader() != null) {
         return JSON.parseObject(x.toString(), cls);
       }
-      return new String();
+      return x;
     });
     return (CompletableFuture<T>) result;
+  }
+
+  public void tell(AbstractRequest request, ActorRef sender) {
+    actor.tell(request, sender);
   }
 }

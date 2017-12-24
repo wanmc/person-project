@@ -5,7 +5,7 @@
  * 文件名：	ClientTest.java
  * 模块说明：	
  * 修改历史：
- * 2017年12月22日 - Administrator - 创建。
+ * 2017年12月22日 - wanmc - 创建。
  */
 package com.wmc.akkadb;
 
@@ -23,13 +23,13 @@ import com.wmc.akkadb.client.AkkaDBClient;
 import akka.actor.ActorSystem;
 
 /**
- * @author Administrator
+ * @author wanmc
  *
  */
 public class ClientTest {
   private static final ActorSystem system = ActorSystem.create("Akka-db-system-client");
   AkkaDBClient client = new AkkaDBClient(system,
-      ConfigFactory.defaultApplication().getString("akka.remote_url"));
+      ConfigFactory.defaultApplication().getString("akka.remote_url"), 500000);
 
   @Test
   public void set() throws Exception {
