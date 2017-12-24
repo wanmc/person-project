@@ -29,7 +29,7 @@ import akka.actor.ActorSystem;
 public class ClientTest {
   private static final ActorSystem system = ActorSystem.create("Akka-db-system-client");
   AkkaDBClient client = new AkkaDBClient(system,
-      ConfigFactory.defaultApplication().getString("akka.remote_url"), 500000);
+      ConfigFactory.defaultApplication().getString("akka.remote_url"), 50000);
 
   @Test
   public void set() throws Exception {

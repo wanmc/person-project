@@ -14,7 +14,6 @@ import java.util.Map;
 
 import com.wmc.akkadb.commons.IllegalRequestException;
 import com.wmc.akkadb.commons.KeyNotFoundException;
-import com.wmc.akkadb.event.Connected;
 import com.wmc.akkadb.event.DeleteRequest;
 import com.wmc.akkadb.event.GetRequest;
 import com.wmc.akkadb.event.SetNXRequest;
@@ -57,10 +56,10 @@ public class AkkaDB extends AbstractActor {
       log.debug("receive delete request: {}", e);
       map.remove(e.getKey());
       sender().tell(true, self());
-    }).match(Connected.class, x -> {
+    }).match(String.class, x -> x.equals("connect"), x -> {
       ActorRef sender = sender();
       log.info("客户端[{}]连接成功！", sender.path());
-      sender.tell(x, self());
+      sender.tell("connected", self());
     }).matchAny(e -> {
       sender().tell(new Status.Failure(new IllegalRequestException("未知的事件：{0}", e)), self());
     }).build();
