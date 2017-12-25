@@ -9,6 +9,8 @@
  */
 package com.wmc.akkadb.commons;
 
+import java.text.MessageFormat;
+
 /**
  * 数据库连接超时异常
  * 
@@ -17,4 +19,18 @@ package com.wmc.akkadb.commons;
 public class ConnectTimeoutException extends Exception {
   private static final long serialVersionUID = 2674458752221104410L;
 
+  public ConnectTimeoutException() {
+  }
+
+  public ConnectTimeoutException(String pattern, Object... arguments) {
+    super(MessageFormat.format(pattern, arguments));
+  }
+
+  public ConnectTimeoutException(Throwable t) {
+    super(t);
+  }
+
+  public ConnectTimeoutException(Throwable t, String pattern, Object... arguments) {
+    super(MessageFormat.format(pattern, arguments), t);
+  }
 }

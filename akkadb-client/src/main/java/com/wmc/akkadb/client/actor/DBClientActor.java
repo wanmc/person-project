@@ -9,20 +9,20 @@
  */
 package com.wmc.akkadb.client.actor;
 
-import static com.wmc.akkadb.event.StringRequest.CONNECT;
-import static com.wmc.akkadb.event.StringRequest.CONNECTED;
-import static com.wmc.akkadb.event.StringRequest.CONNECT_CHECK;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import java.util.concurrent.TimeUnit;
+import java.io.Serializable;
 
 import com.wmc.akkadb.commons.ConnectTimeoutException;
 import com.wmc.akkadb.event.AbstractRequest;
 
 import akka.actor.AbstractActorWithStash;
-import akka.actor.ActorRef;
+import akka.actor.ActorIdentity;
 import akka.actor.ActorSelection;
+import akka.actor.Identify;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
+import akka.japi.pf.ReceiveBuilder;
 import scala.concurrent.duration.Duration;
 
 /**
@@ -34,10 +34,11 @@ public class DBClientActor extends AbstractActorWithStash {
   private final LoggingAdapter log = Logging.getLogger(context().system(), this);
   private final ActorSelection db;
   private final Receive online;
+  private int lostBeatCount = 0;
 
   public DBClientActor(String dbUrl) {
     db = context().actorSelection("akka.tcp://Akka-db-system-server@" + dbUrl + "/user/db-actor");
-    online = receiveBuilder().match(AbstractRequest.class, x -> {
+    online = heartBeatBuilder().match(AbstractRequest.class, x -> {
       log.debug("向数据库发起请求：{}", x);
       db.forward(x, getContext());
     }).build();
@@ -45,25 +46,36 @@ public class DBClientActor extends AbstractActorWithStash {
 
   @Override
   public void preStart() throws Exception {
-    log.info("数据库连接actor启动");
-    context().system().scheduler().scheduleOnce(Duration.create(5, TimeUnit.SECONDS), self(),
-        CONNECT_CHECK, context().dispatcher(), ActorRef.noSender());
+    getContext().system().scheduler().schedule(Duration.create(100, MILLISECONDS),
+        Duration.create(5000, MILLISECONDS), db.anchor(), new Identify(getClass().getSimpleName()),
+        getContext().dispatcher(), self());
+  }
+
+  @Override
+  public void postRestart(Throwable reason) throws Exception {
+    log.error(reason.getMessage());
   }
 
   @Override
   public Receive createReceive() {
-    return receiveBuilder().match(AbstractRequest.class, x -> {
-      System.out.println(x);
-      log.debug("连接数据库...");
-      db.tell(CONNECT, self());
+    return heartBeatBuilder().match(AbstractRequest.class, x -> {
       stash();
-    }).match(String.class, x -> x.equals(CONNECTED), x -> {
-      log.debug("连接成功！");
-      getContext().become(online);
-      unstashAll();
-    }).match(String.class, x -> x.equals(CONNECT_CHECK), x -> {
-      // 连接超时，抛出异常，由监控actor根据策略处理
-      throw new ConnectTimeoutException();
     }).build();
+  }
+
+  private ReceiveBuilder heartBeatBuilder() {
+    return receiveBuilder().match(ActorIdentity.class,
+        x -> !x.getActorRef().isPresent() && ++lostBeatCount >= 2, x -> {
+          // 连接超时，抛出异常，由监控actor根据策略处理
+          throw new ConnectTimeoutException("连续丢失2次心跳：{0}", db.anchorPath());
+        }).match(ActorIdentity.class, x -> x.getActorRef().isPresent(), x -> {
+          getContext().become(online);
+          lostBeatCount = 0;
+          unstashAll();
+        });
+  }
+
+  static class HeartBeat implements Serializable {
+    private static final long serialVersionUID = 5887397344090244996L;
   }
 }
