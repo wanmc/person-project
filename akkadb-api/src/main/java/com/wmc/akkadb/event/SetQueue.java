@@ -15,6 +15,6 @@ import java.util.LinkedList;
  * @author wanmc
  *
  */
-public class RequestQueue extends LinkedList<AbstractRequest> {
+public class SetQueue extends LinkedList<SetRequest> {
   private static final long serialVersionUID = 3490160260449487386L;
 }

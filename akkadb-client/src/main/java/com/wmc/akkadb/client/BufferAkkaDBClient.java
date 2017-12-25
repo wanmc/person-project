@@ -17,7 +17,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 
 import com.alibaba.fastjson.JSON;
-import com.wmc.akkadb.client.actor.DBClientActor;
+import com.wmc.akkadb.client.actor.BufferDBClientActor;
 import com.wmc.akkadb.commons.KeyNotFoundException;
 import com.wmc.akkadb.event.AbstractRequest;
 import com.wmc.akkadb.event.DeleteRequest;
@@ -36,17 +36,17 @@ import scala.concurrent.duration.Duration;
  * @author Administrator
  *
  */
-public class AkkaDBClient {
+public class BufferAkkaDBClient {
   private final ActorRef actor;
   private long timeoutInMills;
 
-  public AkkaDBClient(ActorSystem system, String remoteUrl) {
+  public BufferAkkaDBClient(ActorSystem system, String remoteUrl) {
     this(system, remoteUrl, 500L);
   }
 
-  public AkkaDBClient(ActorSystem system, String remoteUrl, long timeoutInMills) {
+  public BufferAkkaDBClient(ActorSystem system, String remoteUrl, long timeoutInMills) {
     this.timeoutInMills = timeoutInMills;
-    actor = system.actorOf(Props.create(DBClientActor.class, remoteUrl));
+    actor = system.actorOf(Props.create(BufferDBClientActor.class, remoteUrl));
   }
 
   public long getTimeoutInMills() {

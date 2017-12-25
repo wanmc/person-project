@@ -7,45 +7,47 @@
  * 修改历史：
  * 2017年12月24日 - wanmc - 创建。
  */
-package com.wmc.akkadb.client;
+package com.wmc.akkadb.client.actor;
+
+import static com.wmc.akkadb.event.StringRequest.CONNECT;
+import static com.wmc.akkadb.event.StringRequest.CONNECTED;
+import static com.wmc.akkadb.event.StringRequest.CONNECT_CHECK;
 
 import java.util.concurrent.TimeUnit;
 
 import com.wmc.akkadb.commons.ConnectTimeoutException;
 import com.wmc.akkadb.event.AbstractRequest;
-import com.wmc.akkadb.event.ConnectCheck;
 
 import akka.actor.AbstractActorWithStash;
 import akka.actor.ActorRef;
 import akka.actor.ActorSelection;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
-import scala.PartialFunction;
 import scala.concurrent.duration.Duration;
-import scala.runtime.BoxedUnit;
 
 /**
+ * 客户端actor，负责与数据库之间的交互
+ * 
  * @author wanmc
- *
  */
 public class DBClientActor extends AbstractActorWithStash {
   private final LoggingAdapter log = Logging.getLogger(context().system(), this);
   private final ActorSelection db;
-  private final PartialFunction<Object, BoxedUnit> online;
+  private final Receive online;
 
   public DBClientActor(String dbUrl) {
     db = context().actorSelection("akka.tcp://Akka-db-system-server@" + dbUrl + "/user/db-actor");
     online = receiveBuilder().match(AbstractRequest.class, x -> {
       log.debug("向数据库发起请求：{}", x);
       db.forward(x, getContext());
-    }).build().onMessage();
+    }).build();
   }
 
   @Override
   public void preStart() throws Exception {
     log.info("数据库连接actor启动");
-    context().system().scheduler().scheduleOnce(Duration.create(2, TimeUnit.SECONDS), self(),
-        new ConnectCheck(), context().dispatcher(), ActorRef.noSender());
+    context().system().scheduler().scheduleOnce(Duration.create(5, TimeUnit.SECONDS), self(),
+        CONNECT_CHECK, context().dispatcher(), ActorRef.noSender());
   }
 
   @Override
@@ -53,13 +55,13 @@ public class DBClientActor extends AbstractActorWithStash {
     return receiveBuilder().match(AbstractRequest.class, x -> {
       System.out.println(x);
       log.debug("连接数据库...");
-      db.tell("connect", self());
+      db.tell(CONNECT, self());
       stash();
-    }).match(String.class, x -> x.equals("connected"), x -> {
+    }).match(String.class, x -> x.equals(CONNECTED), x -> {
       log.debug("连接成功！");
-      context().become(online);
+      getContext().become(online);
       unstashAll();
-    }).match(ConnectCheck.class, x -> {
+    }).match(String.class, x -> x.equals(CONNECT_CHECK), x -> {
       // 连接超时，抛出异常，由监控actor根据策略处理
       throw new ConnectTimeoutException();
     }).build();

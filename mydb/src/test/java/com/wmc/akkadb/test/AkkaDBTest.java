@@ -21,10 +21,13 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 import com.wmc.akkadb.event.GetRequest;
-import com.wmc.akkadb.event.RequestQueue;
+import com.wmc.akkadb.event.RequestMap;
+import com.wmc.akkadb.event.SetNXRequest;
+import com.wmc.akkadb.event.SetQueue;
 import com.wmc.akkadb.event.SetRequest;
 import com.wmc.akkadb.server.AkkaDB;
 
+import akka.actor.AbstractActor;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
 import akka.pattern.Patterns;
@@ -55,6 +58,14 @@ public class AkkaDBTest {
     actorRef.tell(new SetRequest(key, expect), noSender());
     Future future = Patterns.ask(actorRef, new GetRequest(key), 1000);
     assertEquals(expect, Await.result(future, Duration.create(1, TimeUnit.SECONDS)));
+  }
+
+  @Test
+  public void setNXTest() throws Exception {
+    String key = "Ping", expect = "Pong";
+    actorRef.tell(new SetNXRequest(key, expect), noSender());
+    Future future = Patterns.ask(actorRef, new SetNXRequest(key, expect), 1000);
+    assertEquals(false, Await.result(future, Duration.create(1, TimeUnit.SECONDS)));
   }
 
   @Test(expected = ExecutionException.class)
@@ -95,7 +106,7 @@ public class AkkaDBTest {
   public void 批量操作() {
     String key1 = "name", key2 = "mobile";
     String val1 = "万明丞", val2 = "18221201154";
-    RequestQueue queue = new RequestQueue();
+    SetQueue queue = new SetQueue();
     queue.add(new SetRequest(key1, val1));
     queue.add(new SetRequest(key2, val2));
     actorRef.tell(queue, noSender());
@@ -103,8 +114,46 @@ public class AkkaDBTest {
     assertEquals(actorRef.underlyingActor().map.get(key2), val2);
   }
 
+  @Test
+  public void bufferTest() throws InterruptedException {
+    String key1 = "name", key2 = "mobile";
+    String val1 = "万明丞", val2 = "18221201154";
+    TestActorRef<TempActor> actor1 = TestActorRef.create(system, Props.create(TempActor.class));
+    TestActorRef<TempActor> actor2 = TestActorRef.create(system, Props.create(TempActor.class));
+    TestActorRef<TempActor> actor3 = TestActorRef.create(system, Props.create(TempActor.class));
+    TestActorRef<TempActor> actor4 = TestActorRef.create(system, Props.create(TempActor.class));
+    TestActorRef<TempActor> actor5 = TestActorRef.create(system, Props.create(TempActor.class));
+    RequestMap queue = new RequestMap();
+    queue.put(new SetRequest(key1, val1), actor1);
+    queue.put(new SetRequest(key2, val2), actor2);
+    queue.put(new GetRequest(key1), actor3);
+    queue.put(new GetRequest(key2), actor4);
+    queue.put(new SetNXRequest(key2, val1), actor5);
+    actorRef.tell(queue, noSender());
+    Thread.sleep(200);
+    assertEquals(true, actor1.underlyingActor().result);
+    assertEquals(true, actor2.underlyingActor().result);
+    assertEquals(val1, actor3.underlyingActor().result);
+    assertEquals(val2, actor4.underlyingActor().result);
+    assertEquals(false, actor5.underlyingActor().result);
+  }
+
   public CompletionStage get(Object key) {
     final CompletionStage cs = FutureConverters.toJava(Patterns.ask(actorRef, key, 1000));
     return cs;
+  }
+
+  public static class TempActor extends AbstractActor {
+    public Object result;
+
+    @Override
+    public Receive createReceive() {
+      return receiveBuilder().matchAny(this::setResult).build();
+    }
+
+    public void setResult(Object o) {
+      System.out.println(o);
+      result = o;
+    }
   }
 }
