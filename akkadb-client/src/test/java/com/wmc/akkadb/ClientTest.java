@@ -17,6 +17,7 @@ import java.net.URL;
 
 import org.junit.Test;
 
+import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import com.wmc.akkadb.client.AkkaDBClient;
 
@@ -27,9 +28,10 @@ import akka.actor.ActorSystem;
  *
  */
 public class ClientTest {
-  private static final ActorSystem system = ActorSystem.create("Akka-db-system-client");
+  private static final Config cfg = ConfigFactory.load("sample.conf");
+  private static final ActorSystem system = ActorSystem.create("Akka-db-system-client", cfg);
   AkkaDBClient client = new AkkaDBClient(system,
-      ConfigFactory.defaultApplication().getString("akka.remote_url"), 50000);
+      cfg.getString("akka.remote_url"), 50000);
 
   @Test
   public void set() throws Exception {
