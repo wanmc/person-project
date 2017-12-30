@@ -40,13 +40,13 @@ public class AkkaDBClient {
   private final ActorRef actor;
   private long timeoutInMills;
 
-  public AkkaDBClient(ActorSystem system, String remoteUrl) {
-    this(system, remoteUrl, 500L);
+  public AkkaDBClient(ActorSystem system) {
+    this(system, 500L);
   }
 
-  public AkkaDBClient(ActorSystem system, String remoteUrl, long timeoutInMills) {
+  public AkkaDBClient(ActorSystem system, long timeoutInMills) {
     this.timeoutInMills = timeoutInMills;
-    actor = system.actorOf(Props.create(DBClientActor.class, remoteUrl));
+    actor = system.actorOf(Props.create(DBClientActor.class, system));
   }
 
   public long getTimeoutInMills() {

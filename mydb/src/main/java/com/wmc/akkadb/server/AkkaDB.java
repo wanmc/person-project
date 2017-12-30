@@ -93,7 +93,7 @@ public class AkkaDB extends AbstractActor {
   }
 
   private Object get(GetRequest e, boolean answer) {
-    log.debug("receive set request: {}", e);
+    log.debug("receive get request: {}", e);
     return answer(get(e.getKey()), answer);
   }
 
@@ -104,7 +104,7 @@ public class AkkaDB extends AbstractActor {
   }
 
   private Object setNX(SetNXRequest e, boolean answer) {
-    log.debug("receive set request: {}", e);
+    log.debug("receive setNX request: {}", e);
     String key = e.getKey();
     if (map.get(key) == null) {
       map.put(e.getKey(), e.getVal());

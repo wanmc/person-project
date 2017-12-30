@@ -18,8 +18,11 @@ import com.wmc.akkadb.event.AbstractRequest;
 
 import akka.actor.AbstractActorWithStash;
 import akka.actor.ActorIdentity;
-import akka.actor.ActorSelection;
+import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
 import akka.actor.Identify;
+import akka.cluster.client.ClusterClient;
+import akka.cluster.client.ClusterClientSettings;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import akka.japi.pf.ReceiveBuilder;
@@ -32,22 +35,26 @@ import scala.concurrent.duration.Duration;
  */
 public class DBClientActor extends AbstractActorWithStash {
   private final LoggingAdapter log = Logging.getLogger(context().system(), this);
-  private final ActorSelection db;
+  private final ActorRef db;
   private final Receive online;
   private int lostBeatCount = 0;
 
-  public DBClientActor(String dbUrl) {
-    db = context().actorSelection("akka.tcp://Akka-db-system-server@" + dbUrl + "/user/db-actor");
+  public DBClientActor(ActorSystem system) {
+    db = system.actorOf(ClusterClient.props(ClusterClientSettings.create(system)), "db-client");
     online = heartBeatBuilder().match(AbstractRequest.class, x -> {
       log.debug("向数据库发起请求：{}", x);
-      db.forward(x, getContext());
+      db.forward(send(x), getContext());
     }).build();
+  }
+
+  private ClusterClient.Send send(Object x) {
+    return new ClusterClient.Send("/user/db-server", x);
   }
 
   @Override
   public void preStart() throws Exception {
     getContext().system().scheduler().schedule(Duration.create(100, MILLISECONDS),
-        Duration.create(5000, MILLISECONDS), db.anchor(), new Identify(getClass().getSimpleName()),
+        Duration.create(5000, MILLISECONDS), db, send(new Identify(getClass().getSimpleName())),
         getContext().dispatcher(), self());
   }
 
@@ -67,7 +74,7 @@ public class DBClientActor extends AbstractActorWithStash {
     return receiveBuilder().match(ActorIdentity.class,
         x -> !x.getActorRef().isPresent() && ++lostBeatCount >= 2, x -> {
           // 连接超时，抛出异常，由监控actor根据策略处理
-          throw new ConnectTimeoutException("连续丢失2次心跳：{0}", db.anchorPath());
+          throw new ConnectTimeoutException("连续丢失2次心跳：{0}", db.path());
         }).match(ActorIdentity.class, x -> x.getActorRef().isPresent(), x -> {
           getContext().become(online);
           lostBeatCount = 0;

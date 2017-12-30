@@ -30,12 +30,12 @@ import akka.actor.ActorSystem;
 public class ClientTest {
   private static final Config cfg = ConfigFactory.load("sample.conf");
   private static final ActorSystem system = ActorSystem.create("Akka-db-system-client", cfg);
-  AkkaDBClient client = new AkkaDBClient(system,
-      cfg.getString("akka.remote_url"), 50000);
+  AkkaDBClient client = new AkkaDBClient(system, 500000);
 
   @Test
   public void set() throws Exception {
-    String key = "akaly"; URL val = new URL("http://www.baidu.com");
+    String key = "akaly";
+    URL val = new URL("http://www.baidu.com");
     boolean set = client.set(key, val);
     assertTrue(set);
     assertEquals(val, client.get(key, val.getClass()));
