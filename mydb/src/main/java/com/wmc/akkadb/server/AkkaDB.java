@@ -21,7 +21,8 @@ import com.wmc.akkadb.event.RequestMap;
 import com.wmc.akkadb.event.SetNXRequest;
 import com.wmc.akkadb.event.SetQueue;
 import com.wmc.akkadb.event.SetRequest;
-import com.wmc.akkadb.event.StringRequest;
+import com.wmc.akkadb.server.api.TimestampRequest;
+import com.wmc.akkadb.server.api.TimestampResponse;
 
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
@@ -45,7 +46,10 @@ public class AkkaDB extends AbstractActor {
         .match(SetRequest.class, e -> set(e))//
         .match(SetNXRequest.class, e -> setNX(e))//
         .match(DeleteRequest.class, e -> delete(e))//
-        .match(SetQueue.class, queue -> {
+        .match(TimestampRequest.class, e -> {
+          sender().tell(new TimestampResponse(self(), handle(e.getRequest()), e.getTimestamp()),
+              self());
+        }).match(SetQueue.class, queue -> {
           queue.forEach(e -> {
             set(e);
           });
@@ -54,10 +58,6 @@ public class AkkaDB extends AbstractActor {
           map.forEach((e, sender) -> {
             answer(handle(e), sender);
           });
-        }).match(String.class, x -> x.equals(StringRequest.CONNECT), x -> {
-          ActorRef sender = sender();
-          log.info("客户端[{}]连接成功！", sender.path());
-          sender.tell(StringRequest.CONNECTED, self());
         }).matchAny(e -> {
           sender().tell(new Status.Failure(new IllegalRequestException("未知的事件：{0}", e)), self());
         }).build();

@@ -48,7 +48,7 @@ public class DBClientActor extends AbstractActorWithStash {
   }
 
   private ClusterClient.Send send(Object x) {
-    return new ClusterClient.Send("/user/db-server", x);
+    return new ClusterClient.Send("/user/db_dispatcher", x);
   }
 
   @Override

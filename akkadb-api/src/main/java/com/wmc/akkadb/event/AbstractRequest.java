@@ -21,6 +21,8 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 public abstract class AbstractRequest implements Serializable {
   private static final long serialVersionUID = 7332355451062255588L;
 
+  public abstract String getKey();
+  
   @Override
   public String toString() {
     return getClass().getSimpleName() + ":"
