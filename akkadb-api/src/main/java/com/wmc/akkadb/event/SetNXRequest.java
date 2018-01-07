@@ -10,25 +10,13 @@
 package com.wmc.akkadb.event;
 
 /**
- * @author Administrator
+ * @author wanmc
  *
  */
-public class SetNXRequest extends AbstractRequest {
+public class SetNXRequest extends AbstractSetRequest {
   private static final long serialVersionUID = -4724800901522725892L;
-
-  private final String key;
-  private final Object val;
-
+  
   public SetNXRequest(String key, Object val) {
-    this.key = key;
-    this.val = val;
-  }
-
-  public String getKey() {
-    return key;
-  }
-
-  public Object getVal() {
-    return val;
+    super(key, val);
   }
 }

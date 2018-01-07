@@ -5,12 +5,12 @@
  * 文件名：	DeleteRequest.java
  * 模块说明：	
  * 修改历史：
- * 2017年12月22日 - Administrator - 创建。
+ * 2017年12月22日 - wanmc - 创建。
  */
 package com.wmc.akkadb.event;
 
 /**
- * @author Administrator
+ * @author wanmc
  *
  */
 public class DeleteRequest extends AbstractRequest {
@@ -26,4 +26,15 @@ public class DeleteRequest extends AbstractRequest {
     return key;
   }
 
+  @Override
+  public int hashCode() {
+    return key.hashCode();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (obj.getClass() != DeleteRequest.class)
+      return false;
+    return key.equals(((DeleteRequest) obj).getKey());
+  }
 }

@@ -21,10 +21,8 @@ import com.wmc.akkadb.event.RequestMap;
 import com.wmc.akkadb.event.SetNXRequest;
 import com.wmc.akkadb.event.SetQueue;
 import com.wmc.akkadb.event.SetRequest;
-import com.wmc.akkadb.server.api.TimestampRequest;
-import com.wmc.akkadb.server.api.TimestampResponse;
+import com.wmc.akkadb.server.cluster.ClusterActor;
 
-import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Status;
 import akka.event.Logging;
@@ -34,28 +32,25 @@ import akka.event.LoggingAdapter;
  * @author wanmc
  *
  */
-public class AkkaDB extends AbstractActor {
+public class AkkaDB extends ClusterActor {
   protected final LoggingAdapter log = Logging.getLogger(context().system(), this);
 
   public final Map<String, Object> map = new HashMap<>();
 
   @Override
   public Receive createReceive() {
-    return receiveBuilder()//
+    return clusterBuilder()//
         .match(GetRequest.class, e -> get(e))//
         .match(SetRequest.class, e -> set(e))//
         .match(SetNXRequest.class, e -> setNX(e))//
         .match(DeleteRequest.class, e -> delete(e))//
-        .match(TimestampRequest.class, e -> {
-          sender().tell(new TimestampResponse(self(), handle(e.getRequest()), e.getTimestamp()),
-              self());
-        }).match(SetQueue.class, queue -> {
+        .match(SetQueue.class, queue -> {
           queue.forEach(e -> {
             set(e);
           });
           answer(true, true);
         }).match(RequestMap.class, map -> {
-          map.forEach((e, sender) -> {
+          ((RequestMap<AbstractRequest>) map).forEach((e, sender) -> {
             answer(handle(e), sender);
           });
         }).matchAny(e -> {

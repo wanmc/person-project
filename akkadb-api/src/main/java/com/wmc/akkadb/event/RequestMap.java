@@ -16,6 +16,11 @@ import akka.actor.ActorRef;
 /**
  * @author wanmc
  */
-public class RequestMap extends LinkedHashMap<AbstractRequest, ActorRef> {
+public class RequestMap<R extends AbstractRequest> extends LinkedHashMap<R, ActorRef> {
   private static final long serialVersionUID = -4457200652548411912L;
+  
+  public static void main(String[] args) {
+    RequestMap<AbstractRequest> map1 = new RequestMap();
+    System.out.println(map1.getClass().equals(RequestMap.class));
+  }
 }

@@ -40,7 +40,7 @@ public class DBClientActor extends AbstractActorWithStash {
   private int lostBeatCount = 0;
 
   public DBClientActor(ActorSystem system) {
-    db = system.actorOf(ClusterClient.props(ClusterClientSettings.create(system)), "db-client");
+    db = system.actorOf(ClusterClient.props(ClusterClientSettings.create(system)));
     online = heartBeatBuilder().match(AbstractRequest.class, x -> {
       log.debug("向数据库发起请求：{}", x);
       db.forward(send(x), getContext());
