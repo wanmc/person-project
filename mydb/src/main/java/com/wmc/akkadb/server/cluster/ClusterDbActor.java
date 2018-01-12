@@ -35,6 +35,7 @@ import com.wmc.akkadb.server.paxos.Prepare;
 import com.wmc.akkadb.server.paxos.Promise;
 import com.wmc.akkadb.server.paxos.Proposal;
 import com.wmc.akkadb.server.paxos.Proposer;
+import com.wmc.akkadb.server.paxos.Reject;
 
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
@@ -67,7 +68,7 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
 
   private String getSharding(AbstractRequest request) {
     final int shardingIdx = request.getKey().hashCode() % shardingCount;
-    return getSharding(shardingIdx);
+    return getSharding(Math.abs(shardingIdx));
   }
 
   /** 在分片内广播 */
@@ -75,7 +76,7 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
     String sharding = getSharding(request);
     ActorRef extraActor = buildExtraActor(getSender(), request, sharding);
     mediator.tell(new Publish(sharding, new PublishRequest(request)), extraActor);
-    log.debug("广播：{}", request);
+    log.debug("分片{}广播：{}", sharding, request);
     context().system().scheduler().scheduleOnce(Duration.create(timeout, TimeUnit.MILLISECONDS),
         extraActor, "timeout", context().dispatcher(), self());
   }
@@ -140,7 +141,10 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
       AbstractRequest acceptedV = accepted == null ? null : accepted.getVal();
       sender().tell(new Promise(acceptedN, acceptedV), getSelf());
     } else {
-      // TODO 已接收了大于编号N的提案，拒绝编号N
+      // TODO 已接收了 >= N的提案，拒绝编号N
+      Reject reject = new Reject();
+      reject.setPaxosId(prepare.getPaxosKey().getPaxosId());
+      sender().tell(reject, getSelf());
     }
   }
 
@@ -160,6 +164,8 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
     final int N = proposal.getN();
     if (N >= getPromised(key)) {
       accept(key, proposal);
+      log.debug("paxos:{}_{}, chosen:{}, sender{}", proposal.getVal().getKey(),
+          proposal.getPaxosId());
       Serializable learn = learn(proposal);
       sender().tell(new Data(key.getPaxosId(), learn), getSelf());
       clearTemp(key);
@@ -191,7 +197,6 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
   }
 
   private void clearTemp(PaxosKey key) {
-    // TODO 清除小于key的tmp
     promiseds.remove(key);
     accepteds.remove(key);
   }
@@ -222,7 +227,7 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
 
     public ReceiveBuilder builder() {
       return receiveBuilder().match(String.class, x -> x.equals("timeout"), x -> {
-        senderRef.tell(new Failure(new TimeoutException()), self());
+        senderRef.tell(new Failure(new TimeoutException("DB内部超时")), self());
         context().stop(self());
       }).match(Data.class, r -> {
         temp.add(r);
@@ -241,6 +246,7 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
     private final String sharding;
     private final List<Paxos> tmpPaxos = new ArrayList<>(replicas);
     private final List<Promise> tmpPromise = new ArrayList<>(replicas);
+    private final List<Reject> tmpReject = new ArrayList<>(replicas);
 
     private long paxosId;
     private int N;
@@ -251,6 +257,36 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
       this.sharding = sharding;
     }
 
+    private final Receive accept = builder().match(Data.class, r -> {
+      temp.add(r);
+      if (temp.size() > replicas / 2) {
+        Data max = Collections.max(temp, (x, y) -> {
+          return x.getPaxosId().compareTo(y.getPaxosId());
+        });
+        senderRef.tell(max.getVal(), ActorRef.noSender());
+        context().stop(getSelf());
+      }
+    }).build();
+
+    private final Receive prepare = builder().match(Promise.class, promise -> {
+      tmpPromise.add(promise);
+      log.debug(JSONArray.toJSONString(tmpPromise));
+      if (tmpPromise.size() > replicas / 2) {
+        acceptRequest();
+        getContext().become(accept);
+      }
+    }).match(Reject.class, reject -> {
+      tmpReject.add(reject);
+      log.debug(JSONArray.toJSONString(tmpReject));
+      if (tmpReject.size() > replicas / 2) {
+        // TODO 待验证
+        Reject max = Collections.max(tmpReject, (x, y) -> {
+          return x.getPaxosId().compareTo(y.getPaxosId());
+        });
+        prepareRequest(new Paxos(max.getPaxosId(), N, request));
+      }
+    }).build();
+
     @Override
     public Receive createReceive() {
       return builder()//
@@ -259,13 +295,7 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
             log.debug(JSONArray.toJSONString(tmpPaxos));
             if (tmpPaxos.size() > replicas / 2) {
               prepareRequest();
-            }
-          })//
-          .match(Promise.class, promise -> {
-            tmpPromise.add(promise);
-            log.debug(JSONArray.toJSONString(tmpPromise));
-            if (tmpPromise.size() > replicas / 2) {
-              acceptRequest();
+              getContext().become(prepare);
             }
           }).build();
     }
@@ -275,6 +305,10 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
       Paxos max = Collections.max(tmpPaxos, (x, y) -> {
         return x.getId().compareTo(y.getId());
       });
+      prepareRequest(max);
+    }
+
+    public void prepareRequest(Paxos max) {
       this.paxosId = max.getId();
       this.N = max.getPromiseN() + 1;
       this.request = max.getRequest();
@@ -297,9 +331,18 @@ public class ClusterDbActor extends ClusterActor implements Acceptor, Learner {
         mediator.tell(new Publish(sharding, proposal), getSelf());
       } else {
         // TODO 当前paxos已经chosen，应该终止提交议案
-        senderRef.tell(false, ActorRef.noSender());
+        // senderRef.tell(false, ActorRef.noSender());
+        senderRef.tell(new Failure(new IllegalStateException("插入失败")), ActorRef.noSender());
         context().stop(getSelf());
       }
+    }
+
+    @Override
+    public ReceiveBuilder builder() {
+      return receiveBuilder().match(String.class, x -> x.equals("timeout"), x -> {
+        senderRef.tell(new Failure(new TimeoutException("DB内部超时")), self());
+        context().stop(self());
+      });
     }
   }
 }

@@ -14,6 +14,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.net.URL;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
@@ -69,8 +71,56 @@ public class ClientTest {
   @Test
   public void asyncGet() throws Exception {
     String key = "akaly", val = "33-26-34";
-    client.asyncSet(key, val);
+    client.set(key, val);
     String actual = client.asyncGet(key, String.class).get();
     assertEquals(val, actual);
+  }
+
+  @Test
+  public void get() throws Exception {
+    String key = "akaly", val = "33-26-34";
+    String actual = client.asyncGet(key, String.class).get();
+    assertEquals(val, actual);
+  }
+
+  @Test
+  public void consurrentSet() throws Exception {
+    final AtomicInteger errors = new AtomicInteger(0);
+    Thread t1 = new Thread(runnable(errors));
+    Thread t2 = new Thread(runnable(errors));
+    Thread t3 = new Thread(runnable(errors));
+    Thread t4 = new Thread(runnable(errors));
+    Thread t5 = new Thread(runnable(errors));
+    long b = System.currentTimeMillis();
+    t1.start();
+    t2.start();
+    t3.start();
+    t4.start();
+    t5.start();
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+    t5.join();
+    System.out.println(System.currentTimeMillis() - b + ": " + errors.get());
+  }
+
+  public Runnable runnable(AtomicInteger errors) {
+    final String key = "akaly" + new Random().nextInt(30);
+    final Random random = new Random();
+    return new Runnable() {
+      @Override
+      public void run() {
+        AkkaDBClient client = new AkkaDBClient(system, 2000);
+        for (int i = 0; i < 500; i++) {
+          try {
+            client.set(key, random.nextInt(2000));
+          } catch (Exception e) {
+            System.out.println(e);
+            errors.getAndIncrement();
+          }
+        }
+      }
+    };
   }
 }
